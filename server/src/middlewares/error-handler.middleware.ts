@@ -11,6 +11,7 @@ export function errorHandler(
     _next: NextFunction,
 ): void {
     if (error instanceof AppError) {
+        //! response prepare and send to the client . the method res.json() sends the response immediately and ends the request-response cycle 
         res.status(error.statusCode).json({
             error: error.message,
             ...(error.details ? { details: error.details } : {}),
