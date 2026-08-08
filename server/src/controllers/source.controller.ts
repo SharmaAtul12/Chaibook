@@ -10,7 +10,7 @@ import {
     sourceIdParamSchema,
 } from "../validators/source.validator.js";
 import { workspaceIdParamSchema } from "../validators/workspace.validator.js";
-import { bulkDeleteSourcesForWorkspace, createTextOrMarkdownSource, deleteSourceForWorkspace, getSourceForWorkspace, listSourcesForWorkspace } from "../services/source.services.js";
+import { bulkDeleteSourcesForWorkspace, createTextOrMarkdownSource, deleteSourceForWorkspace, getSourceForWorkspace, importWebsiteSource, importYoutubeSource, listSourcesForWorkspace, uploadPdfSource } from "../services/source.services.js";
 
 function parseWorkspaceId(params: Request["params"]) {
     const parsed = workspaceIdParamSchema.safeParse(params);
@@ -129,4 +129,46 @@ export async function bulkDeleteSources(req: Request, res: Response) {
         input.sourceIds,
     );
     res.status(204).send();
+}
+
+export async function importWebsite(req: Request, res: Response) {
+    const { workspaceId } = workspaceIdParamSchema.parse(req.params);
+    const input = importWebsiteSchema.parse(req.body);
+    const source = await importWebsiteSource(
+        workspaceId,
+        req.session.user.id,
+        input,
+    );
+    res.status(201).json(source);
+}
+
+export async function uploadPdf(req: Request, res: Response) {
+    const { workspaceId } = workspaceIdParamSchema.parse(req.params);
+
+    if (!req.file) {
+        throw new ValidationError("PDF file is required");
+    }
+
+    const title =
+        typeof req.body.title === "string" ? req.body.title : undefined;
+
+    const source = await uploadPdfSource(
+        workspaceId,
+        req.session.user.id,
+        req.file,
+        title,
+    );
+
+    res.status(201).json(source);
+}
+
+export async function importYoutube(req: Request, res: Response) {
+    const { workspaceId } = workspaceIdParamSchema.parse(req.params);
+    const input = importYoutubeSchema.parse(req.body);
+    const source = await importYoutubeSource(
+        workspaceId,
+        req.session.user.id,
+        input,
+    );
+    res.status(201).json(source);
 }
