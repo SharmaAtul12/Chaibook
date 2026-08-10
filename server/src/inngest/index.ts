@@ -1,5 +1,6 @@
 import { findChunksBySourceId } from "../repository/source-chunk.repository.js";
 import { findSourceById } from "../repository/sources.repository.js";
+import { summarizeConversationById } from "../services/conversation-memory.services.js";
 import { chunkSourceContent, embedAndIndexSource, extractSourceContent, markSourceFailed, markSourceProcessing } from "../services/source.processing.services.js";
 import { inngest } from "./client.js";
 
@@ -52,4 +53,21 @@ export const processSource = inngest.createFunction(
   },
 );
 
-export const functions = [processSource]
+export const summarizeConversation = inngest.createFunction(
+    {
+        id: "summarize-conversation",
+        retries: 2,
+        triggers: [{ event: "conversation/summarize" }],
+    },
+    async ({ event, step }) => {
+        const { conversationId, userId } = event.data;
+
+        await step.run("summarize", () =>
+            summarizeConversationById(conversationId, userId),
+        );
+
+        return { conversationId, status: "SUMMARIZED" };
+    },
+);
+
+export const functions = [processSource, summarizeConversation];
