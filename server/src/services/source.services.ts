@@ -1,6 +1,7 @@
 import { uploadPdfToCloudinary } from "../lib/cloudinary.js";
 import { scrapeWebsite } from "../lib/firecrawl.js";
 import { extractPdfFromBuffer } from "../lib/pdf.js";
+import { enqueueSourceProcessing } from "../lib/source-events.js";
 import { fetchYoutubeTranscript } from "../lib/youtube.js";
 import { createSourceRecord, deleteSourceRecord, findSourceByIdAndWorkspaceId, findSourcesByWorkspaceId, SourceRecord } from "../repository/sources.repository.js";
 import { NotFoundError } from "../types/app-error.js";
@@ -14,10 +15,10 @@ async function assertWorkspaceAccess(workspaceId: string, userId: string) {
 async function createAndProcessSource(data: Parameters<typeof createSourceRecord>[0]) {
     const source = await createSourceRecord(data); // Create the source record in the database
 
-    // await enqueueSourceProcessing({
-    //     sourceId: source.id,
-    //     workspaceId: source.workspaceId,
-    // });
+    await enqueueSourceProcessing({
+        sourceId: source.id,
+        workspaceId: source.workspaceId,
+    });
 
     return source;
 }
