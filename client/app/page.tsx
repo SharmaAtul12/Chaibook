@@ -1,69 +1,118 @@
-import Image from "next/image";
+import Link from "next/link";
+import { redirect } from "next/navigation";
+import { ArrowRight, BookOpen, MessagesSquare, Network, Sparkles } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { ModeToggle } from "@/components/ui/mode-toggle";
+import { authRoutes, getSession } from "@/features/auth";
 
-export default function Home() {
-  return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
+const features = [
+    {
+        icon: BookOpen,
+        title: "Unified sources",
+        description:
+            "Add PDFs, websites, and YouTube videos to a single, searchable workspace.",
+    },
+    {
+        icon: MessagesSquare,
+        title: "Grounded chat",
+        description:
+            "Ask questions and get answers with inline citations back to your sources.",
+    },
+    {
+        icon: Network,
+        title: "Persistent memory",
+        description:
+            "Your assistant remembers context across sessions so it gets smarter over time.",
+    },
+];
+
+export default async function HomePage() {
+    const session = await getSession();
+
+    if (session) {
+        redirect(authRoutes.dashboard);
+    }
+
+    return (
+        <div className="relative flex min-h-svh flex-col overflow-hidden">
+            <div
+                aria-hidden
+                className="pointer-events-none absolute inset-0 -z-10 opacity-50 bg-[radial-gradient(var(--color-border)_1px,transparent_1px)] bg-size-[24px_24px] mask-[radial-gradient(ellipse_at_top,black,transparent_70%)]"
             />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+            <div className="absolute -top-40 left-1/2 -z-10 size-144 -translate-x-1/2 rounded-full bg-primary/10 blur-3xl" />
+
+            <header className="flex items-center justify-between px-6 py-5 md:px-10">
+                <div className="flex items-center gap-2.5">
+                    <div className="flex size-9 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm">
+                        <Sparkles className="size-5" />
+                    </div>
+                    <span className="font-heading text-lg font-semibold tracking-tight">
+                        Chaibook
+                    </span>
+                </div>
+                <div className="flex items-center gap-2">
+                    <ModeToggle />
+                    <Button
+                        nativeButton={false}
+                        variant="ghost"
+                        render={<Link href={authRoutes.login} />}
+                    >
+                        Sign in
+                    </Button>
+                </div>
+            </header>
+
+            <main className="flex flex-1 flex-col items-center justify-center px-6 py-16 text-center">
+                <div className="inline-flex items-center gap-2 rounded-full border bg-background/60 px-3.5 py-1.5 text-xs font-medium text-muted-foreground backdrop-blur">
+                    <span className="flex size-1.5 rounded-full bg-primary" />
+                    Your AI-powered research notebook
+                </div>
+
+                <h1 className="mt-6 max-w-3xl font-heading text-4xl font-semibold leading-tight tracking-tight md:text-6xl">
+                    Chat with everything{" "}
+                    <span className="text-primary">you read.</span>
+                </h1>
+
+                <p className="mt-5 max-w-xl text-base text-muted-foreground md:text-lg">
+                    Bring your sources together, ask questions, and get cited
+                    answers. Chaibook turns your documents into a conversation.
+                </p>
+
+                <div className="mt-9 flex flex-col items-center gap-3 sm:flex-row">
+                    <Button
+                        nativeButton={false}
+                        size="lg"
+                        className="h-12 rounded-xl px-6 text-base"
+                        render={<Link href={authRoutes.login} />}
+                    >
+                        Get started
+                        <ArrowRight />
+                    </Button>
+                </div>
+
+                <div className="mt-20 grid w-full max-w-4xl gap-4 md:grid-cols-3">
+                    {features.map(({ icon: Icon, title, description }) => (
+                        <div
+                            key={title}
+                            className="rounded-2xl border bg-card/50 p-6 text-left backdrop-blur transition-colors hover:bg-card"
+                        >
+                            <div className="flex size-10 items-center justify-center rounded-xl border border-primary/20 bg-primary/10 text-primary">
+                                <Icon className="size-5" />
+                            </div>
+                            <h3 className="mt-4 font-heading text-base font-medium">
+                                {title}
+                            </h3>
+                            <p className="mt-1.5 text-sm text-muted-foreground">
+                                {description}
+                            </p>
+                        </div>
+                    ))}
+                </div>
+            </main>
+
+            <footer className="px-6 py-6 text-center text-xs text-muted-foreground">
+                © {new Date().getFullYear()} Chaibook. All rights reserved.
+            </footer>
         </div>
-      </main>
-    </div>
-  );
+    );
 }
