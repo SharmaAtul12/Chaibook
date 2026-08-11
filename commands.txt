@@ -1,1 +1,0 @@
-npx --ignore-scripts=false inngest-cli@latest dev -u http://localhost:8081/api/inngest
