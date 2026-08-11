@@ -1,5 +1,6 @@
 import type { Prisma } from "../generated/prisma/client.js";
 import prisma from "../lib/db.js";
+import { stripNullBytes } from "../utils/sanitize.js";
 import { ListSourcesQuery } from "../validators/source.validator.js";
 
 export const sourceSelect = {
@@ -35,7 +36,7 @@ export function createSourceRecord(data: CreateSourceData) {
             workspaceId: data.workspaceId,
             type: data.type,
             title: data.title,
-            content: data.content ?? null,
+            content: stripNullBytes(data.content) ?? null,
             url: data.url ?? null,
             status: data.status ?? "PENDING",
             metadata: data.metadata,
@@ -106,7 +107,12 @@ export function updateSourceRecord(
 ) {
     return prisma.source.update({
         where: { id: sourceId },
-        data,
+        data: {
+            ...data,
+            ...(data.content !== undefined
+                ? { content: stripNullBytes(data.content) }
+                : {}),
+        },
         select: sourceSelect,
     });
 }
