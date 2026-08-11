@@ -1,5 +1,6 @@
 import type { Prisma } from "../generated/prisma/client.js";
 import prisma from "../lib/db.js";
+import { stripNullBytes } from "../utils/sanitize.js";
 
 /**
  * ! Why This File ? 
@@ -52,7 +53,7 @@ export function createSourceChunks(chunks: CreateSourceChunkData[]) {
                 data: {
                     sourceId: chunk.sourceId,
                     index: chunk.index,
-                    content: chunk.content,
+                    content: stripNullBytes(chunk.content),
                     tokenCount: chunk.tokenCount ?? null,
                     metadata: chunk.metadata,
                 },
