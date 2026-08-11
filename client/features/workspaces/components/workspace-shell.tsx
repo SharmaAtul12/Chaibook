@@ -85,7 +85,7 @@ export function WorkspaceShell({ workspace, children }: WorkspaceShellProps) {
     ];
 
     return (
-        <SidebarProvider>
+        <SidebarProvider className="h-svh overflow-hidden">
             <Sidebar>
                 <SidebarHeader className="border-b border-sidebar-border">
                     <div className="flex items-center gap-2.5 px-2 py-1.5">
@@ -168,7 +168,9 @@ export function WorkspaceShell({ workspace, children }: WorkspaceShellProps) {
                     <SignOutButton showLabel={false} size="icon-sm" />
                 </header>
 
-                <main className="flex min-h-0 flex-1 flex-col">{children}</main>
+                <main className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+                    {children}
+                </main>
             </SidebarInset>
 
             <AddSourceDialog
