@@ -7,8 +7,12 @@ export async function getSession(): Promise<Session | null> {
     const requestHeaders = await headers();
     const cookie = requestHeaders.get("cookie") ?? "";
 
+    const appUrl = (
+        process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"
+    ).replace(/\/+$/, "");
+
     const response = await fetch(
-        `${process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"}/api/auth/get-session`,
+        `${appUrl}/api/auth/get-session`,
         {
             headers: { cookie },
             cache: "no-store",
