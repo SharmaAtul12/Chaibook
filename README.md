@@ -24,7 +24,7 @@ The system is a monorepo with two apps: a **Next.js 16** client (port `3000`) an
 - [Data Model](#data-model)
 - [Environment Variables](#environment-variables)
 - [Local Setup & Commands](#local-setup--commands)
-- [Deployment Roadmap (Vercel)](#deployment-roadmap-vercel)
+- [Deployment](#deployment)
 - [Troubleshooting](#troubleshooting)
 
 ## Tech Stack
@@ -804,51 +804,117 @@ This launches the local Inngest dev server and registers the app by polling the 
 
 **Startup order matters:** server → Inngest → client. The server must be up so Inngest can reach `/api/inngest`; the client proxies `/api/*` to the server, so the server should be running before you use the UI.
 
-## Deployment Roadmap (Vercel)
+## Deployment
 
-### What deploys where
+Chaibook runs as a **split deployment**: the Next.js client is hosted on **Vercel**, and the Express + Inngest API server is hosted on **Render**. Managed services (Neon Postgres, Pinecone, Inngest Cloud, OpenAI, Mem0, Tavily, Firecrawl, Cloudinary) back both.
 
-- **Client (Next.js) → Vercel.** The App Router client is a natural fit for Vercel.
-- **Server (Express + Inngest workers) → a host with persistent processes** (e.g. **Render**, **Railway**, or **Fly.io**). The server is a long-running Express process that also hosts the Inngest `serve` endpoint and performs multi-step background work (extract → chunk → embed → index, artifact generation, summarization). Vercel's serverless functions are **short-lived and stateless**, which is a poor fit for an always-on Express app and for Inngest's function execution model (durable, multi-step, retried). Keep the API server on a platform that supports persistent processes; deploy only the Next.js client to Vercel.
-  - Alternative (advanced): port the Express handlers to Next.js Route Handlers and use Inngest's Vercel integration with `inngest/next`. This is a larger refactor and is **not** how the current codebase is structured.
+### Live environment
 
-### Required changes for production
+| Component | Platform | URL |
+| --- | --- | --- |
+| Client (Next.js) | Vercel | `https://chaibook-one.vercel.app` |
+| API server (Express + Inngest) | Render (Web Service) | `https://notebooklm-rb3f.onrender.com` |
+| Inngest serve endpoint | Render (same service) | `https://notebooklm-rb3f.onrender.com/api/inngest` |
+| Health check | Render (same service) | `https://notebooklm-rb3f.onrender.com/health` |
+| Background jobs | Inngest Cloud | registered against the serve endpoint |
 
-- **Client env:** set `API_URL` to the deployed server URL (e.g. `https://api.chaibook.com`) and `NEXT_PUBLIC_APP_URL` to the deployed client URL (e.g. `https://chaibook.com`).
-- **Proxy/rewrites:** `next.config.ts` already reads `API_URL`; confirm it points at the production API. All proxied paths (`/api/auth/*`, `/api/workspaces*`, `/api/memory*`) will forward to the server.
-- **CORS / cookies / origins:** set the server's `CLIENT_URL` to the production client origin. Set `BETTER_AUTH_URL` to the client origin (auth is proxied through the client), and add the production client origin to better-auth `trustedOrigins`. Ensure cookies are **Secure** over HTTPS and that client/server share a compatible domain strategy (same site or properly configured cross-site cookies).
-- **Google OAuth:** add the production redirect/callback URLs to the Google OAuth client.
+### Why split (client on Vercel, server on Render)
 
-### Provisioning
+- **Client → Vercel.** The App Router client is a natural fit for Vercel's serverless/edge model.
+- **Server → Render.** The API is a long-running Express process that also hosts the Inngest `serve` endpoint and runs multi-step background work (extract → chunk → embed → index, artifact generation, summarization). Render runs it as a persistent process, which suits an always-on Express app.
+- The client's `next.config.ts` **rewrites** proxy same-origin `/api/auth/*`, `/api/workspaces*`, and `/api/memory*` to the Render server, so the browser only ever talks to the Vercel origin and cookies stay first-party.
+- **Advanced alternative (not used here):** port the Express handlers to Next.js Route Handlers and use `inngest/next` to run everything on Vercel. This is a larger refactor; the current codebase keeps the two apps separate.
 
-- **Managed Postgres** (Neon/Supabase/RDS) → set `DATABASE_URL`.
-- **Pinecone** index (`PINECONE_INDEX`, 1536-dim, cosine) → set `PINECONE_API_KEY` (the app auto-creates the index if missing).
-- **OpenAI**, **Mem0**, **Tavily**, **Firecrawl**, **Cloudinary** keys as needed.
-- Set **all** server env vars on the server host, and the two client env vars on Vercel.
+### 1. Provision managed services
 
-### Inngest in production
+- **Neon Postgres** → `DATABASE_URL` (pooled connection string, `sslmode=require`).
+- **Pinecone** index (`PINECONE_INDEX`, 1536-dim, cosine) → `PINECONE_API_KEY` (the app auto-creates the index if missing).
+- **Inngest Cloud** app → production **signing key** + **event key**.
+- **OpenAI**, **Mem0**, **Tavily**, **Firecrawl**, **Cloudinary** keys.
 
-- Register the app in the **Inngest Cloud** dashboard and point it at the server's public serve endpoint: `https://<your-server-host>/api/inngest`.
-- Configure the production **signing key** and **event key** (`INNGEST_SIGNING_KEY` / `INNGEST_EVENT_KEY`) on the server host, and **remove/disable `INNGEST_DEV`** in production.
+### 2. Deploy the API server to Render
 
-### Prisma in CI/CD
+Create a **Web Service** pointing at the repo with:
 
-Run migrations and generate the client during the server's build/release step:
+- **Root Directory:** `server`
+- **Build Command:** `npm install && npx prisma generate && npx prisma migrate deploy && npm run build`
+- **Start Command:** `npm start` (runs `node dist/index.js`)
+- **Health Check Path:** `/health`
 
-```bash
-npx prisma migrate deploy   # apply committed migrations (production-safe)
-npx prisma generate         # generate the client for the runtime
-```
+**Server env vars (Render):**
 
-### Pre-launch checklist
+| Var | Value |
+| --- | --- |
+| `DATABASE_URL` | Neon pooled connection string |
+| `BETTER_AUTH_SECRET` | strong random secret |
+| `BETTER_AUTH_URL` | the **client** URL — `https://chaibook-one.vercel.app` |
+| `CLIENT_URL` | the client URL — `https://chaibook-one.vercel.app` (CORS origin) |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google OAuth credentials |
+| `OPENAI_API_KEY`, `PINECONE_API_KEY`, `PINECONE_INDEX` | AI / vector store |
+| `MEM0_API_KEY`, `TAVILY_API_KEY`, `FIRECRAWL_API_KEY` | memory / search / scrape |
+| `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_UPLOAD_PRESET`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` | PDF storage |
+| `INNGEST_SIGNING_KEY` / `INNGEST_EVENT_KEY` | from Inngest Cloud |
 
-- [ ] All server env vars set on the API host; both client env vars set on Vercel.
-- [ ] `prisma migrate deploy` run against the production database.
-- [ ] Pinecone index exists (or key allows auto-create) with matching dimension (1536).
+**Do not set** `PORT` (Render injects its own; the app reads `process.env.PORT`) and **do not set** `INNGEST_DEV` in production (it forces the local dev-server mode). Both `BETTER_AUTH_URL` and `CLIENT_URL` must be the **client** origin with **no trailing slash** (CORS matches the `Origin` header exactly, and better-auth derives `trustedOrigins` from `BETTER_AUTH_URL`).
+
+Prisma runs during the build: `prisma migrate deploy` applies committed migrations and `prisma generate` regenerates the client into `src/generated/prisma`. The project uses the `@prisma/adapter-pg` driver adapter, so there is **no native query-engine binary** to bundle — `tsc` compiles the generated client to `dist/` and `node dist/index.js` runs it.
+
+### 3. Register the app in Inngest Cloud
+
+Point the Inngest Cloud app at `https://notebooklm-rb3f.onrender.com/api/inngest` and set `INNGEST_SIGNING_KEY` / `INNGEST_EVENT_KEY` on Render. Without this, sources stay `PENDING` and artifacts never reach `READY`.
+
+### 4. Deploy the client to Vercel
+
+Import the repo as a Vercel project with:
+
+- **Root Directory:** `client` (monorepo — this is required)
+- **Framework:** Next.js (auto-detected)
+
+**Client env vars (Vercel, Production + Preview):**
+
+| Var | Value |
+| --- | --- |
+| `API_URL` | the server URL — `https://notebooklm-rb3f.onrender.com` (used by `next.config.ts` rewrites and server-side fetches) |
+| `NEXT_PUBLIC_APP_URL` | the client URL — `https://chaibook-one.vercel.app` (used for server-side session fetch) |
+
+Both must include the `https://` **scheme** and have **no trailing slash**. `NEXT_PUBLIC_APP_URL` is inlined at **build time**, so after changing it you must trigger a fresh deploy (a redeploy without a rebuild won't pick up the new value).
+
+### 5. Configure Google OAuth
+
+In the Google Cloud Console OAuth client, add the production entries (keep the localhost ones for local dev):
+
+- **Authorized JavaScript origin:** `https://chaibook-one.vercel.app`
+- **Authorized redirect URI:** `https://chaibook-one.vercel.app/api/auth/callback/google`
+
+The callback lives on the **client** origin because auth is proxied through it (and `BETTER_AUTH_URL` is the client URL). The redirect URI must match exactly — `https`, full path, no trailing slash.
+
+### 6. Keep the free tier warm (uptime monitoring)
+
+Render's free tier sleeps a Web Service after ~15 minutes of inactivity (cold start ~30–60s). An external uptime monitor pings `https://notebooklm-rb3f.onrender.com/health` **every 3 minutes** to keep the instance awake, which also keeps the Inngest serve endpoint reachable so background jobs run without cold-start delays.
+
+- The `/health` route (`GET /health` → `"Server is healthy!"`) already exists in `server/src/index.ts`.
+- A single always-on service uses ~730 of the free tier's 750 monthly instance-hours, so it fits — avoid adding a second always-on free service.
+- An alert on the monitor (email/Slack) surfaces deploy failures or crashes.
+
+### Production hardening applied to the code
+
+Changes made to the repo to support this deployment:
+
+- **`server/.npmrc`** with `legacy-peer-deps=true` — Render's clean `npm install` failed with `ERESOLVE` because `mem0ai` pins an exact peer `pg@8.11.3` while the project uses `pg@8.22.0`. `pg` is backward-compatible, so this allows the install (matching what worked locally).
+- **URL normalization** in `client/next.config.ts`, `client/features/workspaces/lib/workspace-server.ts`, and `client/features/auth/lib/auth-server.ts` — `API_URL` / `NEXT_PUBLIC_APP_URL` are stripped of trailing slashes and given an `https://` scheme if missing, preventing double-slash proxy 404s (`//api/auth/...`) and `Failed to parse URL` render crashes from misconfigured env values.
+- **Favicon** — replaced the default `client/app/favicon.ico` with `client/app/icon.svg` (the Chaibook Sparkles mark on the emerald brand color), which Next.js serves as the site icon.
+
+### Deployment checklist
+
+- [x] Neon Postgres provisioned; `prisma migrate deploy` run against it during Render build.
+- [x] Pinecone index exists (1536-dim, cosine) or key allows auto-create.
+- [x] Server deployed to Render; `/health` returns `200`; `PORT` and `INNGEST_DEV` **not** set.
+- [x] Inngest Cloud app registered against `/api/inngest`; signing + event keys set on Render.
+- [x] Client deployed to Vercel with `API_URL` and `NEXT_PUBLIC_APP_URL` (scheme, no trailing slash).
+- [x] `CLIENT_URL` + `BETTER_AUTH_URL` on Render = the Vercel origin (no trailing slash); CORS verified allowing the origin with credentials.
+- [x] Google OAuth origin + `/api/auth/callback/google` redirect URI added for the Vercel domain.
+- [x] Uptime monitor pinging `/health` every 3 minutes.
 - [ ] Any keys copied from development are **rotated** for production.
-- [ ] `CLIENT_URL`, `BETTER_AUTH_URL`, and better-auth `trustedOrigins` match the production client origin; cookies are Secure over HTTPS.
-- [ ] Inngest app registered; signing/event keys set; `INNGEST_DEV` disabled.
-- [ ] `next build` and `tsc` (server build) both pass in CI.
 
 ## Troubleshooting
 
