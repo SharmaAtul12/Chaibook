@@ -1,7 +1,10 @@
 import { headers } from "next/headers";
 import type { Workspace } from "./types";
 
-const apiUrl = (process.env.API_URL ?? "http://localhost:8081").replace(/\/+$/, "");
+const rawApiUrl = process.env.API_URL ?? "http://localhost:8081";
+const apiUrl = (
+    /^https?:\/\//.test(rawApiUrl) ? rawApiUrl : `https://${rawApiUrl}`
+).replace(/\/+$/, "");
 
 async function fetchWorkspace(id: string): Promise<Workspace | null> {
     const requestHeaders = await headers();
